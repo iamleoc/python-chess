@@ -78,10 +78,18 @@ class Board:
             self.board[start_rank][start_file], self.board[rank][file] = piece, 0
             return False
 
-    def capture_piece(self, piece, rank, file):
+    def capture_piece(self, piece, rank, file, last_move):
         """If a capture is to occur, this replaces the selected square with the capturing piece."""
+        start_rank = piece.rank
+        start_file = piece.file
+        captured_piece = self.get_piece(rank, file)
         self.board[piece.rank][piece.file], self.board[rank][file] = 0, self.board[piece.rank][piece.file]
-        piece.move(rank, file)
+        if not self.isCheck(WHITE if piece.colour == BLACK else BLACK, last_move):
+            piece.move(rank, file)
+            return True
+        else:
+            self.board[start_rank][start_file], self.board[rank][file] = piece, captured_piece
+            return False
 
     def get_piece(self, rank, file):
         return self.board[rank][file]
@@ -105,37 +113,51 @@ class Board:
 
         # check forward moves
         if colour == WHITE:
-            if self.board[starting_rank-1][starting_file] == 0:
-                moves[(starting_rank-1, starting_file)] = 0
-                if not has_moved and self.board[starting_rank-2][starting_file] == 0:
-                    moves[(starting_rank - 2, starting_file)] = "pawnTwoSpaces"
+            if starting_rank - 1 > 0:
+                if self.board[starting_rank-1][starting_file] == 0:
+                    moves[(starting_rank-1, starting_file)] = 0
+                    if not has_moved and self.board[starting_rank-2][starting_file] == 0:
+                        moves[(starting_rank - 2, starting_file)] = "pawnTwoSpaces"
 
         elif colour == BLACK:
-            if self.board[starting_rank + 1][starting_file] == 0:
-                moves[(starting_rank + 1, starting_file)] = 0
-                if not has_moved and self.board[starting_rank + 2][starting_file] == 0:
-                    moves[(starting_rank + 2, starting_file)] = "pawnTwoSpaces"
+            if starting_rank + 1 < 8:
+                if self.board[starting_rank + 1][starting_file] == 0:
+                    moves[(starting_rank + 1, starting_file)] = 0
+                    if not has_moved and self.board[starting_rank + 2][starting_file] == 0:
+                        moves[(starting_rank + 2, starting_file)] = "pawnTwoSpaces"
 
         # check if pawn can make a capture
         if colour == WHITE:
-            if starting_file > 0:
+            if starting_file > 0 and starting_rank > 0:
                 left_capture = self.get_piece(starting_rank - 1, starting_file - 1)
                 if left_capture and left_capture.colour == BLACK:
-                    moves[(starting_rank - 1, starting_file - 1)] = 0
-            if starting_file < 7:
-                right_capture = self.get_piece(starting_rank -1, starting_file + 1)
+                    if starting_rank - 1 == 0:
+                        moves[(starting_rank-1, starting_file-1)] = "promotion"
+                    else:
+                        moves[(starting_rank - 1, starting_file - 1)] = 0
+            if starting_file < 7 and starting_rank > 0:
+                right_capture = self.get_piece(starting_rank - 1, starting_file + 1)
                 if right_capture and right_capture.colour == BLACK:
-                    moves[(starting_rank -1, starting_file + 1)] = 0
+                    if starting_rank - 1 == 0:
+                        moves[(starting_rank - 1, starting_file+1)] = "promotion"
+                    else:
+                        moves[(starting_rank - 1, starting_file + 1)] = 0
 
         elif colour == BLACK:
-            if starting_file > 0:
+            if starting_file > 0 and starting_rank < 7:
                 left_capture = self.get_piece(starting_rank + 1, starting_file - 1)
                 if left_capture and left_capture.colour == WHITE:
-                    moves[(starting_rank + 1, starting_file - 1)] = 0
-            if starting_file < 7:
+                    if starting_rank + 1 == 7:
+                        moves[(starting_rank + 1, starting_file - 1)] = "promotion"
+                    else:
+                        moves[(starting_rank + 1, starting_file - 1)] = 0
+            if starting_file < 7 and starting_rank < 7:
                 right_capture = self.get_piece(starting_rank + 1, starting_file + 1)
                 if right_capture and right_capture.colour == WHITE:
-                    moves[(starting_rank + 1, starting_file + 1)] = 0
+                    if starting_rank + 1 == 7:
+                        moves[(starting_rank + 1, starting_file + 1)] = "promotion"
+                    else:
+                        moves[(starting_rank + 1, starting_file + 1)] = 0
 
         # check en passant
         if colour == WHITE:
@@ -149,6 +171,15 @@ class Board:
             elif last_move == (starting_rank, starting_file+1):
                 moves[(starting_rank+1, starting_file + 1)] = "en passant"
 
+        # promotion
+        if colour == WHITE:
+            if starting_rank - 1 == 0:
+                if self.board[starting_rank - 1][starting_file] == 0:
+                    moves[(starting_rank - 1, starting_file)] = "promotion"
+        else:
+            if starting_rank + 1 == 7:
+                if self.board[starting_rank + 1][starting_file] == 0:
+                    moves[(starting_rank + 1, starting_file)] = "promotion"
         return moves
 
     def rook(self, piece_type, colour, has_moved, starting_rank, starting_file, last_move):
@@ -233,7 +264,7 @@ class Board:
         moves.update(self._traverseDownLeft(piece_type, colour, starting_rank, starting_file))
         moves.update(self._traverseUpRight(piece_type, colour, starting_rank, starting_file))
         moves.update(self._traverseDownRight(piece_type, colour, starting_rank, starting_file))
-        moves.update(self._castlingRights(piece_type, has_moved, colour, starting_rank, starting_file))
+        moves.update(self._castlingRights(piece_type, has_moved, colour, starting_rank, starting_file, last_move))
         return moves
 
     # The following code traverses in a line and returns possible squares that could be a valid move.
@@ -367,7 +398,7 @@ class Board:
                 return moves
         return moves
 
-    def _castlingRights(self, piece_type, has_moved, colour, starting_rank, starting_file):
+    def _castlingRights(self, piece_type, has_moved, colour, starting_rank, starting_file, last_move):
         """Works out whether a selected king can castle or not."""
         moves = {}
         if not has_moved:
@@ -399,19 +430,36 @@ class Board:
     # The following code is specific code that is essentially the same as the move function above.
     # The difference here is that the pieces/squares affected are not the same as
     # the pieces/squares selected with the mouse
-    def shortCastle(self, king, rank, file):
+    def shortCastle(self, king, rank, file, last_move):
+        start_rank = king.rank
+        start_file = king.file
         rook = self.get_piece(rank, file + 1)
         self.board[king.rank][king.file], self.board[rank][file] = self.board[rank][file], self.board[king.rank][king.file]
-        self.board[rank][file-1], self.board[rook.rank][rook.file] = rook, self.board[rank][file-1]
-        king.move(rank, file)
-        rook.move(rank, file-1)
+        self.board[rank][file - 1], self.board[rook.rank][rook.file] = rook, self.board[rank][file - 1]
+        if not self.isCheck(WHITE if king.colour == BLACK else BLACK, last_move):
+            king.move(rank, file)
+            rook.move(rank, file-1)
+            return True
+        else:
+            # revert to original pos
+            self.board[start_rank][start_file], self.board[rank][file] = king, 0
+            self.board[rook.rank][rook.file], self.board[rank][file-1] = rook, 0
+            return False
 
-    def longCastle(self, king, rank, file):
+    def longCastle(self, king, rank, file, last_move):
+        start_rank = king.rank
+        start_file = king.file
         rook = self.get_piece(rank, file-2)
         self.board[king.rank][king.file], self.board[rank][file] = self.board[rank][file], self.board[king.rank][king.file]
         self.board[rank][file+1], self.board[rook.rank][rook.file] = rook, self.board[rank][file+1]
-        king.move(rank, file)
-        rook.move(rank, file + 1)
+        if not self.isCheck(WHITE if king.colour == BLACK else BLACK, last_move):
+            king.move(rank, file)
+            rook.move(rank, file + 1)
+            return True
+        else:
+            self.board[start_rank][start_file], self.board[rank][file] = king, 0
+            self.board[rook.rank][rook.file], self.board[rank][file + 1] = rook, 0
+            return False
 
     def enPassant(self, pawn, rank, file, colour, last_move):
         new_board = self.board[:]
@@ -449,3 +497,74 @@ class Board:
                     return True
         return False
 
+    def short_castle_through_check(self, colour, last_move):
+        """Determines if a king is trying to castle through check"""
+        check_moves = {}
+        for rank in range(RANKS):
+            for file in range(FILES):
+                piece = self.get_piece(rank, file)
+                if piece != 0 and piece.colour != colour:
+                    check_moves.update(self.get_valid_moves(piece, last_move))
+        if colour == WHITE:
+            if (7, 5) in check_moves:
+                return True
+            else:
+                return False
+        else:
+            if (0, 5) in check_moves:
+                return True
+            else:
+                return False
+
+    def long_castle_through_check(self, colour, last_move):
+        """Determines if a king is trying to castle through check"""
+        check_moves = {}
+        for rank in range(RANKS):
+            for file in range(FILES):
+                piece = self.get_piece(rank, file)
+                if piece != 0 and piece.colour != colour:
+                    check_moves.update(self.get_valid_moves(piece, last_move))
+        if colour == WHITE:
+            if (7, 3) in check_moves:
+                return True
+            else:
+                return False
+        else:
+            if (0, 3) in check_moves:
+                return True
+            else:
+                return False
+
+    def pawn_promotion(self, piece, rank, file, last_move):
+        while True:
+            print("Which piece would you like to promote to?")
+            new_piece_type = input("N = Knight, B = Bishop, R = Rook, Q = Queen, C = Cancel: ").upper()
+            if new_piece_type in ["N", "B", "R", "Q", "C"]:
+                break
+            else:
+                print("Please only enter one of the valid options.\n")
+        start_rank = piece.rank
+        start_file = piece.file
+        captured_piece = self.board[rank][file]
+        self.board[piece.rank][piece.file], self.board[rank][file] = 0, self.board[piece.rank][piece.file]
+        if not self.isCheck(WHITE if piece.colour == BLACK else BLACK, last_move):
+            if new_piece_type == 'N':
+                piece.piece_type = piece.piece_type[:2] + "knight"
+                piece.piece_image = piece.piece_dict[piece.piece_type]
+            elif new_piece_type == "B":
+                piece.piece_type = piece.piece_type[:2] + "bishop"
+                piece.piece_image = piece.piece_dict[piece.piece_type]
+            elif new_piece_type == "R":
+                piece.piece_type = piece.piece_type[:2] + "rook"
+                piece.piece_image = piece.piece_dict[piece.piece_type]
+            elif new_piece_type == "Q":
+                piece.piece_type = piece.piece_type[:2] + "queen"
+                piece.piece_image = piece.piece_dict[piece.piece_type]
+            elif new_piece_type == "C":
+                return False
+            piece.move(rank, file)
+            return True
+        else:
+            self.board[start_rank][start_file], self.board[rank][file] = piece, captured_piece
+            return False
+            
