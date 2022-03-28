@@ -53,13 +53,29 @@ class Game:
         new_sq = self.board.get_piece(rank, file)
         if new_sq == 0 and (rank, file) in self.valid_moves:
             if self.valid_moves[(rank, file)] == "shortCastle":
-                self.board.shortCastle(self.selected, rank, file)
-                self.lastMove = None
-                self.change_turn()
+                if self.board.isCheck(WHITE if self.turn == BLACK else BLACK, self.lastMove):
+                    return False
+                if self.board.short_castle_through_check(self.selected.colour, self.lastMove):
+                    return False
+                else:
+                    result = self.board.shortCastle(self.selected, rank, file, self.lastMove)
+                    if result:
+                        self.lastMove = None
+                        self.change_turn()
+                    else:
+                        return False
             elif self.valid_moves[(rank, file)] == "longCastle":
-                self.board.longCastle(self.selected, rank, file)
-                self.lastMove = None
-                self.change_turn()
+                if self.board.isCheck(WHITE if self.turn == BLACK else BLACK, self.lastMove):
+                    return False
+                if self.board.long_castle_through_check(self.selected.colour, self.lastMove):
+                    return False
+                else:
+                    result = self.board.longCastle(self.selected, rank, file, self.lastMove)
+                    if result:
+                        self.lastMove = None
+                        self.change_turn()
+                    else:
+                        return False
             elif self.valid_moves[(rank, file)] == "pawnTwoSpaces":
                 result = self.board.move(self.selected, rank, file, self.lastMove)
                 if result:
@@ -75,19 +91,35 @@ class Game:
                     self.change_turn()
                 else:
                     return False
+            elif self.valid_moves[(rank, file)] == "promotion":
+                result = self.board.pawn_promotion(self.selected, rank, file, self.lastMove)
+                if result:
+                    self.lastMove = None
+                    self.change_turn()
+                else:
+                    return False
             else:
-                result = self.board.move(self.selected, rank, file, self.lastMove, self.is_it_check)
+                result = self.board.move(self.selected, rank, file, self.lastMove)
                 if result:
                     self.lastMove = None
                     self.change_turn()
                 else:
                     return False
         elif new_sq != 0 and (rank, file) in self.valid_moves:
-            new_piece = self.board.get_piece(rank, file)
-            if new_piece.colour != self.selected.colour:
-                self.board.capture_piece(self.selected, rank, file)
-                self.lastMove = None
-                self.change_turn()
+            if self.valid_moves[(rank, file)] == "promotion":
+                result = self.board.pawn_promotion(self.selected, rank, file, self.lastMove)
+                if result:
+                    self.lastMove = None
+                    self.change_turn()
+                else:
+                    return False
+            elif new_sq.colour != self.selected.colour:
+                result = self.board.capture_piece(self.selected, rank, file, self.lastMove)
+                if result:
+                    self.lastMove = None
+                    self.change_turn()
+                else:
+                    return False
             else:
                 return False
         else:
@@ -107,3 +139,4 @@ class Game:
         for move in moves:
             rank, file = move
             pygame.draw.circle(self.win, BLUE, (file * SQUARE_SIZE + SQUARE_SIZE // 2, rank * SQUARE_SIZE + SQUARE_SIZE // 2), 15)
+
